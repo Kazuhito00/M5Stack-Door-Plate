@@ -7,6 +7,7 @@
 
 // グローバル変数
 String g_html;
+String g_c_html;
 WebServer g_server(80);
 boolean g_setup_flag = true;
 
@@ -15,11 +16,11 @@ void init(unsigned char text_size, unsigned long delay_time)
 {
     M5.begin();
     SD.begin();
-    
+
     M5.Power.begin();
-    
+
     delay(delay_time);
-    
+
     M5.Lcd.setTextSize(text_size);
     M5.Lcd.setBrightness(100);
 }
@@ -28,16 +29,16 @@ void init(unsigned char text_size, unsigned long delay_time)
 String readTextfile(const char *path)
 {
     String text = "";
-    
+
     File fp = SD.open(path);
     if(fp)
     {
         while(fp.available())
         {
             text = text + fp.readString();
-        } 
+        }
         fp.close();
-    } 
+    }
 
     return text;
 }
@@ -92,6 +93,32 @@ void handleOn()
     g_server.send(200, "text/html", g_html);
 }
 
+void handleOnChild()
+{
+    // URLパラメータ解析
+    if (g_server.hasArg("status"))
+    {
+        // 仕事中_子ども用
+        if (g_server.arg("status").equals("working_for_child"))
+        {
+            M5.Lcd.drawJpgFile(SD, "/working_for_child.jpg");
+        }
+        // 会議中_子ども用
+        else if (g_server.arg("status").equals("meeting_for_child"))
+        {
+            M5.Lcd.drawJpgFile(SD, "/meeting_for_child.jpg");
+        }
+        // 休憩中_子ども用
+        else if (g_server.arg("status").equals("rest_for_child"))
+        {
+            M5.Lcd.drawJpgFile(SD, "/rest_for_child.jpg");
+        }
+    }
+
+    g_server.send(200, "text/html", g_c_html);
+}
+
+
 // Webサーバーイベントハンドラ：onNotFound
 void handleOnNotFound(void)
 {
@@ -103,7 +130,7 @@ void setup(void)
     String config_ini = "";
     String ssid = "";
     String password = "";
-    
+
     unsigned char wifi_try_count = 0;
 
     // デバイス初期化
@@ -112,24 +139,32 @@ void setup(void)
     // Configファイル読み込み
     config_ini = readTextfile("/config.ini");
     if(config_ini.length() > 0) {
-       M5.Lcd.println("Loaded config.ini");
+        M5.Lcd.println("Loaded config.ini");
     } else {
-       M5.Lcd.println("Failed laod config.ini");
-       g_setup_flag = false;
+        M5.Lcd.println("Failed laod config.ini");
+        g_setup_flag = false;
     }
-    
+
     // Config：パスワード取得
     password = getConfigValue(config_ini, "#SSID_PASSWORD");
     // Config：SSID取得
     ssid = getConfigValue(config_ini, "#SSID");
-    
+
     // htmlファイル読み込み
     g_html = readTextfile("/index.html");
     if(g_html.length() > 0) {
-       M5.Lcd.println("Loaded index.html");
+        M5.Lcd.println("Loaded index.html");
     } else {
-       M5.Lcd.println("Failed laod index.html");
-       g_setup_flag = false;
+        M5.Lcd.println("Failed laod index.html");
+        g_setup_flag = false;
+    }
+
+    g_c_html = readTextfile("/child.html");
+    if(g_c_html.length() > 0) {
+        M5.Lcd.println("Loaded child.html");
+    } else {
+        M5.Lcd.println("Failed laod child.html");
+        g_setup_flag = false;
     }
 
     // Wi-Fi接続開始
@@ -142,14 +177,14 @@ void setup(void)
             g_setup_flag = false;
             break;
         }
-        
+
         M5.Lcd.print(".");
         delay(100);
 
         wifi_try_count++;
     }
     M5.Lcd.println("");
-    
+
     // Wi-Fi接続成功
     if (WiFi.status() == WL_CONNECTED) {
         M5.Lcd.println("Wifi connection successful");
@@ -161,6 +196,7 @@ void setup(void)
     // Webサーバー起動
     if (g_setup_flag) {
         g_server.on("/", handleOn);
+        g_server.on("/child.html", handleOnChild);
         g_server.onNotFound(handleOnNotFound);
         g_server.begin();
 
